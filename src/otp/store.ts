@@ -1,5 +1,5 @@
 import type { RowDataPacket } from "mysql2";
-import { pool } from "../db";
+import { getPool } from "../db";
 
 const OTP_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const OTP_LENGTH = 6;
@@ -14,6 +14,7 @@ function generateCode(): string {
 }
 
 export async function createOtp(phone: string): Promise<string> {
+  const pool = await getPool();
   const code = generateCode();
   const expiresAt = Date.now() + OTP_TTL_MS;
   await pool.query(
@@ -25,6 +26,7 @@ export async function createOtp(phone: string): Promise<string> {
 }
 
 export async function verifyOtp(phone: string, code: string): Promise<boolean> {
+  const pool = await getPool();
   const [rows] = await pool.query<RowDataPacket[]>(
     "SELECT code, expires_at FROM otps WHERE phone = ?",
     [phone],

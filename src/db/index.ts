@@ -38,4 +38,24 @@ function getPoolConfig(): mysql.PoolOptions {
   };
 }
 
-export const pool = mysql.createPool(getPoolConfig());
+let poolInstance: mysql.Pool | null = null;
+
+const OTPS_TABLE_SQL = `
+  CREATE TABLE IF NOT EXISTS otps (
+    phone VARCHAR(20) PRIMARY KEY,
+    code VARCHAR(10) NOT NULL,
+    expires_at BIGINT NOT NULL
+  )
+`;
+
+/**
+ * Returns the DB pool, creating it and ensuring the otps table exists on first use.
+ * This allows the server to start even when DB env is missing or MySQL is down.
+ */
+export async function getPool(): Promise<mysql.Pool> {
+  if (poolInstance) return poolInstance;
+  const config = getPoolConfig();
+  poolInstance = mysql.createPool(config);
+  await poolInstance.query(OTPS_TABLE_SQL);
+  return poolInstance;
+}
