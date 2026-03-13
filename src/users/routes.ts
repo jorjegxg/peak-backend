@@ -18,7 +18,10 @@ function getBearerToken(req: Request): string | null {
  */
 router.get("/me", async (req: Request, res: Response) => {
   if (!isFirebaseConfigured()) {
-    return res.status(503).json({ error: "Authentication service is not configured" });
+    return res.status(503).json({
+      error: "Authentication service is not configured",
+      hint: "Set FIREBASE_SERVICE_ACCOUNT_JSON or GOOGLE_APPLICATION_CREDENTIALS in peak-backend .env",
+    });
   }
   const token = getBearerToken(req);
   if (!token) {
@@ -42,7 +45,10 @@ router.get("/me", async (req: Request, res: Response) => {
  */
 router.post("/me/phone", async (req: Request, res: Response) => {
   if (!isFirebaseConfigured()) {
-    return res.status(503).json({ error: "Authentication service is not configured" });
+    return res.status(503).json({
+      error: "Authentication service is not configured",
+      hint: "Set FIREBASE_SERVICE_ACCOUNT_JSON or GOOGLE_APPLICATION_CREDENTIALS in peak-backend .env",
+    });
   }
   const token = getBearerToken(req);
   if (!token) {

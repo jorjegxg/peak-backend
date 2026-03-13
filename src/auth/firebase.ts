@@ -1,15 +1,42 @@
 import admin from "firebase-admin";
+import * as fs from "fs";
+import * as path from "path";
 
 let initialized = false;
 
 export function initFirebaseAdmin(): void {
   if (initialized) return;
+  const credPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
   const json = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-  if (!json || json === "") {
+
+  let credential: admin.ServiceAccount | undefined;
+
+  // Prefer file path (more reliable than inline JSON in .env)
+  if (credPath && credPath.trim() !== "") {
+    const resolvedPath = path.isAbsolute(credPath) ? credPath : path.join(process.cwd(), credPath);
+    if (!fs.existsSync(resolvedPath)) {
+      console.error("[auth] GOOGLE_APPLICATION_CREDENTIALS file not found:", resolvedPath);
+      return;
+    }
+    try {
+      const raw = fs.readFileSync(resolvedPath, "utf8");
+      credential = JSON.parse(raw) as admin.ServiceAccount;
+    } catch (err) {
+      console.error("[auth] Failed to read GOOGLE_APPLICATION_CREDENTIALS file:", err);
+      return;
+    }
+  } else if (json && json.trim() !== "") {
+    try {
+      credential = JSON.parse(json) as admin.ServiceAccount;
+    } catch (err) {
+      console.error("[auth] FIREBASE_SERVICE_ACCOUNT_JSON is invalid JSON. Prefer GOOGLE_APPLICATION_CREDENTIALS=./firebase-service-account.json instead.", err);
+      return;
+    }
+  } else {
     return;
   }
+
   try {
-    const credential = JSON.parse(json);
     admin.initializeApp({ credential: admin.credential.cert(credential) });
     initialized = true;
   } catch (err) {
