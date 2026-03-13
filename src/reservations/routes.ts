@@ -9,6 +9,7 @@ import {
 
 const router = Router();
 const MAX_NAME_LENGTH = 50;
+const MIN_ADVANCE_HOURS = 1;
 
 function getBearerToken(req: Request): string | null {
   const auth = req.headers.authorization;
@@ -110,6 +111,21 @@ router.post("/", async (req: Request, res: Response) => {
   if (trimmedName.length > MAX_NAME_LENGTH) {
     return res.status(400).json({
       error: `name must be at most ${MAX_NAME_LENGTH} characters`,
+    });
+  }
+
+  // Enforce minimum advance booking time
+  const now = new Date();
+  const reservationStart = new Date(`${date}T${time}:00`);
+  if (Number.isNaN(reservationStart.getTime())) {
+    return res.status(400).json({ error: "Invalid date or time" });
+  }
+  const diffMs = reservationStart.getTime() - now.getTime();
+  const minMs = MIN_ADVANCE_HOURS * 60 * 60 * 1000;
+  if (diffMs < minMs) {
+    const unit = MIN_ADVANCE_HOURS === 1 ? "hour" : "hours";
+    return res.status(400).json({
+      error: `Reservations must be made at least ${MIN_ADVANCE_HOURS} ${unit} in advance`,
     });
   }
 
