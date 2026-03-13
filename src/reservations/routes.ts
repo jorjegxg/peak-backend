@@ -1,4 +1,6 @@
 import { Router, Request, Response } from "express";
+import { verifyFirebaseToken, isFirebaseConfigured } from "../auth/firebase";
+import { getProfileByUid, getOrCreateUser } from "../users/store";
 import {
   getReservationsForDate,
   saveReservation,
@@ -6,6 +8,13 @@ import {
 } from "./store";
 
 const router = Router();
+const MAX_NAME_LENGTH = 50;
+
+function getBearerToken(req: Request): string | null {
+  const auth = req.headers.authorization;
+  if (!auth || !auth.startsWith("Bearer ")) return null;
+  return auth.slice(7).trim() || null;
+}
 
 /**
  * GET /api/reservations?date=YYYY-MM-DD
@@ -27,23 +36,57 @@ router.get("/", async (req: Request, res: Response) => {
 
 /**
  * POST /api/reservations
- * Body: { type, station, date, time, duration, name, phone, email, userId? }
+ * Authorization: Bearer <Firebase ID token> required.
+ * Body: { type, station, date, time, duration, name }
+ * Phone and email are taken from the user's profile.
  */
 router.post("/", async (req: Request, res: Response) => {
+  if (!isFirebaseConfigured()) {
+    return res.status(503).json({
+      error: "Authentication service is not configured",
+      hint: "Set GOOGLE_APPLICATION_CREDENTIALS or FIREBASE_SERVICE_ACCOUNT_JSON in .env",
+    });
+  }
+  const token = getBearerToken(req);
+  if (!token) {
+    return res.status(401).json({ error: "Authorization required" });
+  }
+
+  let uid: string;
+  let email: string | null = null;
+  let displayName: string | null = null;
+  try {
+    const decoded = await verifyFirebaseToken(token);
+    uid = decoded.uid;
+    email = decoded.email ?? null;
+    displayName = decoded.name ?? null;
+  } catch (err) {
+    console.error("[reservations] verify token failed:", err);
+    return res.status(401).json({ error: "Invalid or expired token" });
+  }
+
+  let profile = await getProfileByUid(uid);
+  if (!profile) {
+    await getOrCreateUser(uid, email, displayName);
+    profile = await getProfileByUid(uid);
+  }
+  if (!profile) {
+    return res.status(500).json({ error: "Failed to load or create user profile" });
+  }
+  const phone = profile.phone?.trim() || "";
+  const emailFromProfile = profile.email?.trim() || "";
+
   const body = req.body as Partial<
-    Omit<Reservation, "id" | "createdAt"> & { userId?: string }
+    Omit<Reservation, "id" | "createdAt" | "phone" | "email"> & { userId?: string }
   >;
-  const {
-    type,
-    station,
-    date,
-    time,
-    duration,
-    name,
+  const { type, station, date, time, duration, name, userId } = body;
+
+  console.log("[reservations] POST /api/reservations payload:", {
+    uid,
+    emailFromProfile,
     phone,
-    email,
-    userId,
-  } = body;
+    body,
+  });
 
   if (!type || (type !== "ps5" && type !== "pc")) {
     return res.status(400).json({ error: "type must be 'ps5' or 'pc'" });
@@ -63,11 +106,11 @@ router.post("/", async (req: Request, res: Response) => {
   if (!name || typeof name !== "string" || !name.trim()) {
     return res.status(400).json({ error: "name is required" });
   }
-  if (!phone || typeof phone !== "string" || !phone.trim()) {
-    return res.status(400).json({ error: "phone is required" });
-  }
-  if (!email || typeof email !== "string" || !email.trim()) {
-    return res.status(400).json({ error: "email is required" });
+  const trimmedName = name.trim();
+  if (trimmedName.length > MAX_NAME_LENGTH) {
+    return res.status(400).json({
+      error: `name must be at most ${MAX_NAME_LENGTH} characters`,
+    });
   }
 
   try {
@@ -77,10 +120,10 @@ router.post("/", async (req: Request, res: Response) => {
       date,
       time,
       duration,
-      name: name.trim(),
-      phone: phone.trim(),
-      email: email.trim(),
-      ...(userId ? { userId } : {}),
+      name: trimmedName,
+      phone,
+      email: emailFromProfile,
+      ...(userId ?? uid ? { userId: userId ?? uid } : {}),
     });
     res.status(201).json({ reservation });
   } catch (err) {

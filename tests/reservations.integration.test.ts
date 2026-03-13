@@ -1,14 +1,26 @@
 /**
  * Reservation integration tests: real database.
+ * Auth is mocked so POST works without a real Firebase token; reservations store is real.
  * Run with: npm run test:integration
  * Requires: DATABASE_URL or MYSQL_* env (e.g. from .env or .env.test).
  */
 import "dotenv/config";
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi, beforeEach } from "vitest";
 import request from "supertest";
 import { getPool } from "../src/db";
 
+vi.mock("../src/auth/firebase", () => ({
+  verifyFirebaseToken: vi.fn().mockResolvedValue({ uid: "integration-test-uid" }),
+  isFirebaseConfigured: vi.fn().mockReturnValue(true),
+}));
+
+const getProfileByUid = vi.fn();
+vi.mock("../src/users/store", () => ({
+  getProfileByUid,
+}));
+
 const app = (await import("../src/app")).default;
+const testProfile = { phone: "+15551234567", email: "integration@example.com" };
 
 function isDbConfigured(): boolean {
   return !!(process.env.DATABASE_URL || process.env.MYSQL_HOST);
@@ -22,6 +34,10 @@ async function deleteReservationsForDate(date: string): Promise<void> {
 }
 
 describe.skipIf(!isDbConfigured())("Reservations integration", () => {
+  beforeEach(() => {
+    getProfileByUid.mockResolvedValue(testProfile);
+  });
+
   afterEach(async () => {
     await deleteReservationsForDate(TEST_DATE);
   });
@@ -42,14 +58,13 @@ describe.skipIf(!isDbConfigured())("Reservations integration", () => {
       time: "14:00",
       duration: 1,
       name: "Alice",
-      phone: "+15551234567",
-      email: "alice@example.com",
     };
 
     const postRes = await request(app)
       .post("/api/reservations")
       .send(body)
-      .set("Content-Type", "application/json");
+      .set("Content-Type", "application/json")
+      .set("Authorization", "Bearer integration-test-token");
 
     expect(postRes.status).toBe(201);
     expect(postRes.body.reservation).toMatchObject({
@@ -59,8 +74,8 @@ describe.skipIf(!isDbConfigured())("Reservations integration", () => {
       time: "14:00",
       duration: 1,
       name: "Alice",
-      phone: "+15551234567",
-      email: "alice@example.com",
+      phone: testProfile.phone,
+      email: testProfile.email,
     });
     expect(postRes.body.reservation.id).toBeDefined();
     expect(postRes.body.reservation.createdAt).toBeDefined();
@@ -82,8 +97,6 @@ describe.skipIf(!isDbConfigured())("Reservations integration", () => {
       time: "15:00",
       duration: 1,
       name: "Bob",
-      phone: "+15559876543",
-      email: "bob@example.com",
     };
     const two = {
       type: "pc",
@@ -92,12 +105,10 @@ describe.skipIf(!isDbConfigured())("Reservations integration", () => {
       time: "16:00",
       duration: 2,
       name: "Carol",
-      phone: "+15551112222",
-      email: "carol@example.com",
     };
-
-    await request(app).post("/api/reservations").send(one).set("Content-Type", "application/json");
-    await request(app).post("/api/reservations").send(two).set("Content-Type", "application/json");
+    const auth = { Authorization: "Bearer integration-test-token" };
+    await request(app).post("/api/reservations").send(one).set("Content-Type", "application/json").set(auth);
+    await request(app).post("/api/reservations").send(two).set("Content-Type", "application/json").set(auth);
 
     const res = await request(app).get(
       `/api/reservations?date=${encodeURIComponent(TEST_DATE)}`
@@ -119,10 +130,9 @@ describe.skipIf(!isDbConfigured())("Reservations integration", () => {
         time: "12:00",
         duration: 1,
         name: "Other",
-        phone: "+15550000000",
-        email: "other@example.com",
       })
-      .set("Content-Type", "application/json");
+      .set("Content-Type", "application/json")
+      .set("Authorization", "Bearer integration-test-token");
 
     const res = await request(app).get(
       `/api/reservations?date=${encodeURIComponent(TEST_DATE)}`
@@ -134,7 +144,7 @@ describe.skipIf(!isDbConfigured())("Reservations integration", () => {
     await pool.query("DELETE FROM reservations WHERE date = ?", [otherDate]);
   });
 
-  it("POST accepts optional userId", async () => {
+  it("POST stores userId from token", async () => {
     const body = {
       type: "pc",
       station: 1,
@@ -142,21 +152,19 @@ describe.skipIf(!isDbConfigured())("Reservations integration", () => {
       time: "17:00",
       duration: 1,
       name: "User",
-      phone: "+15553334444",
-      email: "user@example.com",
-      userId: "+15557778888",
     };
 
     const postRes = await request(app)
       .post("/api/reservations")
       .send(body)
-      .set("Content-Type", "application/json");
+      .set("Content-Type", "application/json")
+      .set("Authorization", "Bearer integration-test-token");
     expect(postRes.status).toBe(201);
-    expect(postRes.body.reservation.userId).toBe("+15557778888");
+    expect(postRes.body.reservation.userId).toBe("integration-test-uid");
 
     const getRes = await request(app).get(
       `/api/reservations?date=${encodeURIComponent(TEST_DATE)}`
     );
-    expect(getRes.body.reservations[0].userId).toBe("+15557778888");
+    expect(getRes.body.reservations[0].userId).toBe("integration-test-uid");
   });
 });

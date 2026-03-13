@@ -66,6 +66,18 @@ export async function getOrCreateUser(
   };
 }
 
+/** Get phone and email for a user by Firebase UID. Returns null if user not found. */
+export async function getProfileByUid(firebaseUid: string): Promise<{ phone: string | null; email: string | null } | null> {
+  await ensureTable();
+  const pool = await getPool();
+  const [rows] = await pool.query<RowDataPacket[]>(
+    "SELECT phone, email FROM users WHERE firebase_uid = ?",
+    [firebaseUid]
+  );
+  const row = rows[0] as { phone: string | null; email: string | null } | undefined;
+  return row ?? null;
+}
+
 export async function setUserPhone(firebaseUid: string, phone: string): Promise<void> {
   await ensureTable();
   const pool = await getPool();

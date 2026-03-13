@@ -3,13 +3,28 @@ import request from "supertest";
 
 const getReservationsForDate = vi.fn();
 const saveReservation = vi.fn();
+const verifyFirebaseToken = vi.fn();
+const isFirebaseConfigured = vi.fn();
+const getProfileByUid = vi.fn();
 
 vi.mock("../src/reservations/store", () => ({
   getReservationsForDate,
   saveReservation,
 }));
 
+vi.mock("../src/auth/firebase", () => ({
+  verifyFirebaseToken,
+  isFirebaseConfigured,
+}));
+
+vi.mock("../src/users/store", () => ({
+  getProfileByUid,
+}));
+
 const app = (await import("../src/app")).default;
+
+const authHeader = () => ({ Authorization: "Bearer test-token" });
+const testProfile = { phone: "+15559876543", email: "bob@example.com" };
 
 describe("Reservation routes", () => {
   beforeEach(() => {
@@ -68,13 +83,28 @@ describe("Reservation routes", () => {
       time: "14:00",
       duration: 1,
       name: "Bob",
-      phone: "+15559876543",
-      email: "bob@example.com",
     };
 
-    it("returns 201 and reservation when body is valid", async () => {
+    beforeEach(() => {
+      isFirebaseConfigured.mockReturnValue(true);
+      verifyFirebaseToken.mockResolvedValue({ uid: "test-uid" });
+      getProfileByUid.mockResolvedValue(testProfile);
+    });
+
+    it("returns 401 when no Authorization header", async () => {
+      const res = await request(app)
+        .post("/api/reservations")
+        .send(validBody)
+        .set("Content-Type", "application/json");
+      expect(res.status).toBe(401);
+      expect(res.body.error).toContain("Authorization");
+    });
+
+    it("returns 201 and reservation when body is valid and token valid", async () => {
       const saved = {
         ...validBody,
+        phone: testProfile.phone,
+        email: testProfile.email,
         id: "gen-id",
         createdAt: "2025-03-15T12:00:00.000Z",
       };
@@ -83,7 +113,8 @@ describe("Reservation routes", () => {
       const res = await request(app)
         .post("/api/reservations")
         .send(validBody)
-        .set("Content-Type", "application/json");
+        .set("Content-Type", "application/json")
+        .set(authHeader());
 
       expect(res.status).toBe(201);
       expect(res.body.reservation).toEqual(saved);
@@ -95,8 +126,8 @@ describe("Reservation routes", () => {
           time: "14:00",
           duration: 1,
           name: "Bob",
-          phone: "+15559876543",
-          email: "bob@example.com",
+          phone: testProfile.phone,
+          email: testProfile.email,
         }),
       );
     });
@@ -105,7 +136,8 @@ describe("Reservation routes", () => {
       const res = await request(app)
         .post("/api/reservations")
         .send({ ...validBody, type: "xbox" })
-        .set("Content-Type", "application/json");
+        .set("Content-Type", "application/json")
+        .set(authHeader());
       expect(res.status).toBe(400);
       expect(res.body.error).toContain("type");
     });
@@ -114,7 +146,8 @@ describe("Reservation routes", () => {
       const res = await request(app)
         .post("/api/reservations")
         .send({ ...validBody, station: 0 })
-        .set("Content-Type", "application/json");
+        .set("Content-Type", "application/json")
+        .set(authHeader());
       expect(res.status).toBe(400);
       expect(res.body.error).toContain("station");
     });
@@ -123,7 +156,8 @@ describe("Reservation routes", () => {
       const res = await request(app)
         .post("/api/reservations")
         .send({ ...validBody, date: "03-15-2025" })
-        .set("Content-Type", "application/json");
+        .set("Content-Type", "application/json")
+        .set(authHeader());
       expect(res.status).toBe(400);
       expect(res.body.error).toContain("date");
     });
@@ -132,47 +166,40 @@ describe("Reservation routes", () => {
       const res = await request(app)
         .post("/api/reservations")
         .send({ ...validBody, name: "   " })
-        .set("Content-Type", "application/json");
+        .set("Content-Type", "application/json")
+        .set(authHeader());
       expect(res.status).toBe(400);
       expect(res.body.error).toContain("name");
     });
 
-    it("accepts optional userId", async () => {
-      saveReservation.mockResolvedValue({
-        ...validBody,
-        id: "x",
-        createdAt: "",
-      });
+    it("returns 400 when name exceeds max length", async () => {
       const res = await request(app)
         .post("/api/reservations")
-        .send({ ...validBody, userId: "+15551111111" })
-        .set("Content-Type", "application/json");
-      expect(res.status).toBe(201);
-      expect(saveReservation).toHaveBeenCalledWith(
-        expect.objectContaining({ userId: "+15551111111" }),
-      );
+        .send({ ...validBody, name: "x".repeat(101) })
+        .set("Content-Type", "application/json")
+        .set(authHeader());
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain("100");
     });
 
-    it("trims name, phone, email", async () => {
+    it("trims name and uses profile phone/email", async () => {
       saveReservation.mockResolvedValue({
         ...validBody,
+        phone: testProfile.phone,
+        email: testProfile.email,
         id: "x",
         createdAt: "",
       });
       await request(app)
         .post("/api/reservations")
-        .send({
-          ...validBody,
-          name: "  Bob  ",
-          phone: "  +15559876543  ",
-          email: "  bob@example.com  ",
-        })
-        .set("Content-Type", "application/json");
+        .send({ ...validBody, name: "  Bob  " })
+        .set("Content-Type", "application/json")
+        .set(authHeader());
       expect(saveReservation).toHaveBeenCalledWith(
         expect.objectContaining({
           name: "Bob",
-          phone: "+15559876543",
-          email: "bob@example.com",
+          phone: testProfile.phone,
+          email: testProfile.email,
         }),
       );
     });
