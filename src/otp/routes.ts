@@ -46,7 +46,7 @@ router.post("/send", async (req: Request, res: Response) => {
 
   try {
     // TODO: Uncomment this when Twilio is configured
-    // await sendOtpSms(to, code);
+    await sendOtpSms(to, code);
   } catch (err) {
     console.error("[OTP] Twilio send failed:", err);
     return res.status(502).json({
