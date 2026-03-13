@@ -12,9 +12,23 @@ function normalizePhone(phone: string): string {
   return phone.replace(/\s/g, "").trim();
 }
 
+/** Convert normalized phone to E.164.
+ * For Romanian numbers:
+ *  - "0753532559" -> "+40753532559"
+ *  - "753532559"  -> "+40753532559"
+ * Other numbers keep all digits and just get a leading "+" if missing.
+ */
 function toE164(phone: string): string {
   const n = normalizePhone(phone);
-  return n.startsWith("+") ? n : `+${n}`;
+  if (n.startsWith("+")) return n;
+  const digits = n.replace(/\D/g, "");
+  if (digits.length === 10 && digits.startsWith("0")) {
+    return `+40${digits.slice(1)}`;
+  }
+  if (digits.length === 9) {
+    return `+40${digits}`;
+  }
+  return `+${digits}`;
 }
 
 function isValidPhone(phone: string): boolean {
