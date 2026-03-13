@@ -97,7 +97,7 @@ describe("Reservation routes", () => {
           name: "Bob",
           phone: "+15559876543",
           email: "bob@example.com",
-        })
+        }),
       );
     });
 
@@ -138,19 +138,27 @@ describe("Reservation routes", () => {
     });
 
     it("accepts optional userId", async () => {
-      saveReservation.mockResolvedValue({ ...validBody, id: "x", createdAt: "" });
+      saveReservation.mockResolvedValue({
+        ...validBody,
+        id: "x",
+        createdAt: "",
+      });
       const res = await request(app)
         .post("/api/reservations")
         .send({ ...validBody, userId: "+15551111111" })
         .set("Content-Type", "application/json");
       expect(res.status).toBe(201);
       expect(saveReservation).toHaveBeenCalledWith(
-        expect.objectContaining({ userId: "+15551111111" })
+        expect.objectContaining({ userId: "+15551111111" }),
       );
     });
 
     it("trims name, phone, email", async () => {
-      saveReservation.mockResolvedValue({ ...validBody, id: "x", createdAt: "" });
+      saveReservation.mockResolvedValue({
+        ...validBody,
+        id: "x",
+        createdAt: "",
+      });
       await request(app)
         .post("/api/reservations")
         .send({
@@ -165,7 +173,7 @@ describe("Reservation routes", () => {
           name: "Bob",
           phone: "+15559876543",
           email: "bob@example.com",
-        })
+        }),
       );
     });
   });
