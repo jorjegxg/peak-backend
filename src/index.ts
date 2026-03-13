@@ -1,26 +1,7 @@
 import "dotenv/config";
-import cors from "cors";
-import express, { Request, Response } from "express";
-import otpRoutes from "./otp/routes";
-import reservationRoutes from "./reservations/routes";
+import app from "./app";
 
-const app = express();
 const PORT = process.env.PORT || 3001;
-
-app.use(cors());
-// Parse JSON bodies
-app.use(express.json());
-
-// OTP phone verification
-app.use("/api/otp", otpRoutes);
-
-// Reservations (database)
-app.use("/api/reservations", reservationRoutes);
-
-// Health/root route
-app.get("/", (_req: Request, res: Response) => {
-  res.json({ message: "Hello from the backend!" });
-});
 
 const server = app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
