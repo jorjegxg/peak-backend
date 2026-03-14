@@ -9,6 +9,7 @@ const app = express();
 const allowedOrigins = [
   "https://peak-nu-nine.vercel.app",
   "http://localhost:3000",
+  "https://peak-4h65hm9x7-gxgs-projects-19966461.vercel.app/",
 ];
 app.use(
   cors({
@@ -19,7 +20,7 @@ app.use(
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
-  })
+  }),
 );
 app.use(express.json());
 
