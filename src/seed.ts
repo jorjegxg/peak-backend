@@ -3,12 +3,13 @@
  */
 import "dotenv/config";
 import { getPool } from "./db";
-import { ensureTable } from "./reservations/store";
+import { ensureTable, type Reservation } from "./reservations/store";
 
 const SEED_DATE_1 = "2026-03-13";
 const SEED_DATE_2 = "2025-03-14";
 
-const DUMMY_RESERVATIONS = [
+type SeedReservation = Omit<Reservation, "id" | "createdAt" | "userId">;
+const DUMMY_RESERVATIONS: SeedReservation[] = [
   // {
   //   type: "ps5" as const,
   //   station: 1,
