@@ -6,10 +6,19 @@ import userRoutes from "./users/routes";
 
 const app = express();
 
+const allowedOrigins = [
+  "https://peak-nu-nine.vercel.app",
+  "http://localhost:3000",
+];
 app.use(
   cors({
+    origin: (origin, cb) => {
+      if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+      return cb(null, false);
+    },
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
   })
 );
 app.use(express.json());
