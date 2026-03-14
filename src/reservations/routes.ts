@@ -4,6 +4,7 @@ import { getProfileByUid, getOrCreateUser } from "../users/store";
 import {
   getReservationsForDate,
   saveReservation,
+  deleteReservationForUser,
   type Reservation,
 } from "./store";
 
@@ -145,6 +146,48 @@ router.post("/", async (req: Request, res: Response) => {
   } catch (err) {
     console.error("[reservations] saveReservation failed:", err);
     res.status(500).json({ error: "Failed to save reservation" });
+  }
+});
+
+/**
+ * DELETE /api/reservations/:id
+ * Authorization: Bearer <Firebase ID token>
+ * Deletes a reservation owned by the current user.
+ */
+router.delete("/:id", async (req: Request, res: Response) => {
+  if (!isFirebaseConfigured()) {
+    return res.status(503).json({
+      error: "Authentication service is not configured",
+    });
+  }
+  const token = getBearerToken(req);
+  if (!token) {
+    return res.status(401).json({ error: "Authorization required" });
+  }
+
+  let uid: string;
+  try {
+    const decoded = await verifyFirebaseToken(token);
+    uid = decoded.uid;
+  } catch (err) {
+    console.error("[reservations] verify token failed (DELETE):", err);
+    return res.status(401).json({ error: "Invalid or expired token" });
+  }
+
+  const id = req.params.id as string;
+  if (!id) {
+    return res.status(400).json({ error: "Reservation id is required" });
+  }
+
+  try {
+    const deleted = await deleteReservationForUser(id, uid);
+    if (!deleted) {
+      return res.status(404).json({ error: "Reservation not found" });
+    }
+    return res.status(204).send();
+  } catch (err) {
+    console.error("[reservations] deleteReservationForUser failed:", err);
+    return res.status(500).json({ error: "Failed to delete reservation" });
   }
 });
 

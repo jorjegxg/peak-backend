@@ -6,7 +6,12 @@ import userRoutes from "./users/routes";
 
 const app = express();
 
-app.use(cors());
+app.use(
+  cors({
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
 app.use(express.json());
 
 app.use("/api/otp", otpRoutes);

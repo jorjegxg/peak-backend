@@ -1,4 +1,4 @@
-import type { RowDataPacket } from "mysql2";
+import type { RowDataPacket, ResultSetHeader } from "mysql2";
 import { getPool } from "../db";
 
 const RESERVATIONS_TABLE_SQL = `
@@ -119,4 +119,17 @@ export async function saveReservation(
     createdAt: new Date(createdAt).toISOString(),
     ...(r.userId ? { userId: r.userId } : {}),
   };
+}
+
+export async function deleteReservationForUser(
+  id: string,
+  userId: string
+): Promise<boolean> {
+  await ensureTable();
+  const pool = await getPool();
+  const [result] = await pool.query<ResultSetHeader>(
+    "DELETE FROM reservations WHERE id = ? AND user_id = ?",
+    [id, userId]
+  );
+  return result.affectedRows > 0;
 }
