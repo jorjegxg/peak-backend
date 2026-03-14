@@ -9,12 +9,14 @@ const app = express();
 const allowedOrigins = [
   "https://peak-nu-nine.vercel.app",
   "http://localhost:3000",
-  "https://peak-4h65hm9x7-gxgs-projects-19966461.vercel.app/",
+  "https://peak-4h65hm9x7-gxgs-projects-19966461.vercel.app",
 ];
 app.use(
   cors({
     origin: (origin, cb) => {
-      if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+      if (!origin) return cb(null, true);
+      if (allowedOrigins.includes(origin)) return cb(null, true);
+      if (origin.endsWith(".vercel.app")) return cb(null, true);
       return cb(null, false);
     },
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
